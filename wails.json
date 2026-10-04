@@ -1,0 +1,18 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "Yearfold",
+  "outputfilename": "Yearfold",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Simo Jakovic",
+    "email": "simo@jakovic.com"
+  },
+  "info": {
+    "productName": "Yearfold",
+    "productVersion": "0.4.0",
+    "comments": "Organize a local photo library without changing the original files"
+  }
+}
