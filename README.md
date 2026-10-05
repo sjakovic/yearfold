@@ -24,30 +24,30 @@ files. Your photos stay ordinary files in ordinary folders.
 
 ## Features
 
-- **Indexes everything** – every file under the folder you pick, including the
+- **Indexes everything** - every file under the folder you pick, including the
   ones that are not photos, so nothing is hidden from you.
-- **Organize by year** – preview exactly what will move where, then move dated
+- **Organize by year** - preview exactly what will move where, then move dated
   photos and videos into year folders. Keep the folder names you already have
   (`2005/Trip to Rome/`), or go flat (`2005/`) or by month (`2005/03/`).
-- **Understands Google Takeout** – reads dates, locations, descriptions and
+- **Understands Google Takeout** - reads dates, locations, descriptions and
   people from the JSON sidecars, including Takeout's truncated and numbered
   file names. One action merges that data into the library, writes missing
   dates into the photos and clears the JSON files away.
-- **Albums and tags that never move a file** – they live in the library index.
+- **Albums and tags that never move a file** - they live in the library index.
   A photo stays in its album when you move it to another folder.
-- **Real moves when you want them** – move photos to any folder inside the
+- **Real moves when you want them** - move photos to any folder inside the
   library; sidecar files travel with them.
-- **Fix missing dates** – set a capture date on one photo or many. JPEG and
+- **Fix missing dates** - set a capture date on one photo or many. JPEG and
   PNG get it written into the file (EXIF) with every other tag left intact;
   other formats and videos keep it in the library.
-- **Duplicates by content** – found by SHA-256 of the file, not by name.
-- **Check for changes** – after you add or rearrange files outside the app,
+- **Duplicates by content** - found by SHA-256 of the file, not by name.
+- **Check for changes** - after you add or rearrange files outside the app,
   review what is new, changed, missing or moved before the index is updated.
   Files moved in Finder or Explorer keep their tags and albums.
-- **Hard to lose anything** – delete goes to a library trash you can restore
+- **Hard to lose anything** - delete goes to a library trash you can restore
   from, and the last move or delete can be undone.
-- **All the metadata** – EXIF, IPTC and XMP for every photo, in one panel.
-- **Fast with big libraries** – virtualized grid, thumbnails generated on
+- **All the metadata** - EXIF, IPTC and XMP for every photo, in one panel.
+- **Fast with big libraries** - virtualized grid, thumbnails generated on
   demand, metadata and hashes computed in the background.
 - **English and Serbian (Cyrillic)** interface.
 
@@ -78,7 +78,7 @@ Photos/
 ```
 
 Paths in the index are relative to the library folder, so a library on an
-external disk — or copied to another computer — opens with its tags and albums
+external disk - or copied to another computer - opens with its tags and albums
 intact. App settings (recent folders, language) are kept separately in the
 operating system's config directory.
 
