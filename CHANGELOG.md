@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-10-05
+
+### Added
+
+- "Organize by year" can keep folder names: a photo in `Albums/Trip to Rome`
+  goes to `2005/Trip to Rome`. Different folders with the same name become
+  `Trip`, `Trip 2`, `Trip 3`, and photos organized later join the folder their
+  neighbours were moved to. Photos already inside a year folder are left
+  alone, so folders arranged by hand stay as arranged. This is now the default
+  layout; "year only" and "year and month" remain available.
+- Video thumbnails on macOS without any extra software, using the system's
+  Quick Look. `ffmpeg` is still used when it is installed.
+
 ## [0.4.0] - 2026-10-04
 
 ### Changed

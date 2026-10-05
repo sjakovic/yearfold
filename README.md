@@ -14,25 +14,21 @@
 
 ![Yearfold showing a library organized into year folders, with albums and tags in the sidebar](docs/screenshot.jpg)
 
-## Why
+## What it does
 
-Exporting everything from Google Photos gives you one big pile: thousands of
-files in folders like `Photos from 2019`, the same picture repeated in every
-album folder, and a `.json` file next to each photo holding the date that the
-photo itself is missing.
-
-Yearfold is built to clean that up. Point it at the folder and it indexes
-every file, shows you what you have, and helps you fold it into a simple
-structure — `2004/`, `2005/`, `2006/` … — without a cloud service and without
-taking ownership of your files. Your photos stay ordinary files in ordinary
-folders that any other program can read.
+Yearfold organizes the photos and videos in a folder on your disk. It indexes
+every file in the folder, lets you browse, tag and group them into albums, and
+moves them into year folders (`2004/`, `2005/`, `2006/` …) when you ask it to.
+It reads Google Takeout exports, including the dates stored in their JSON
+files. Your photos stay ordinary files in ordinary folders.
 
 ## Features
 
 - **Indexes everything** – every file under the folder you pick, including the
   ones that are not photos, so nothing is hidden from you.
 - **Organize by year** – preview exactly what will move where, then move dated
-  photos and videos into `2004/`, `2005/` … (optionally `2004/05/`).
+  photos and videos into year folders. Keep the folder names you already have
+  (`2005/Trip to Rome/`), or go flat (`2005/`) or by month (`2005/03/`).
 - **Understands Google Takeout** – reads dates, locations, descriptions and
   people from the JSON sidecars, including Takeout's truncated and numbered
   file names. One action merges that data into the library, writes missing
@@ -103,7 +99,8 @@ The app is created in `build/bin`. Yearfold is built with Wails, which targets
 macOS, Windows and Linux; so far it has been developed and tested on macOS
 (Apple silicon).
 
-Optional: with `ffmpeg` on the `PATH`, videos get thumbnails instead of an icon.
+Video thumbnails work out of the box on macOS (via Quick Look). On Windows and
+Linux they need `ffmpeg` on the `PATH`; without it videos show an icon.
 
 ### A typical Takeout clean-up
 

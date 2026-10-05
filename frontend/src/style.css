@@ -675,3 +675,9 @@ table.props.small th {
 .detail-actions {
     flex-wrap: wrap;
 }
+
+.options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}

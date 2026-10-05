@@ -2,6 +2,7 @@
 package thumbs
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -14,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/gen2brain/heic"
 	_ "golang.org/x/image/bmp"
@@ -111,7 +113,10 @@ func imageThumb(src, ext string, orientation int, out string) error {
 	if err != nil {
 		return err
 	}
-	img = Orient(Resize(img, Size), orientation)
+	return writeJPEG(out, Orient(Resize(img, Size), orientation))
+}
+
+func writeJPEG(out string, img image.Image) error {
 	f, err := os.Create(out)
 	if err != nil {
 		return err
@@ -204,8 +209,20 @@ func Orient(img image.Image, orientation int) image.Image {
 	return dst
 }
 
-// videoFrame grabs a frame with ffmpeg when it is installed.
+// videoFrame saves a still of a video as a JPEG. No pure Go decoder exists
+// for common video codecs, so this relies on what the system offers: ffmpeg
+// when it is installed, otherwise Quick Look on macOS.
 func videoFrame(src, out string) error {
+	if ffmpegFrame(src, out) == nil {
+		return nil
+	}
+	if runtime.GOOS == "darwin" {
+		return quickLookFrame(src, out)
+	}
+	return ErrUnsupported
+}
+
+func ffmpegFrame(src, out string) error {
 	ffmpeg, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		return ErrUnsupported
@@ -220,4 +237,30 @@ func videoFrame(src, out string) error {
 		return ErrUnsupported
 	}
 	return nil
+}
+
+// quickLookTimeout bounds one Quick Look run; a damaged video must not hold
+// a thumbnail worker forever.
+const quickLookTimeout = 30 * time.Second
+
+// quickLookFrame asks macOS Quick Look, the service behind Finder's own
+// previews, for a thumbnail. It writes "<name>.png" into a directory.
+func quickLookFrame(src, out string) error {
+	tmp, err := os.MkdirTemp("", "yearfold-ql-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+
+	ctx, cancel := context.WithTimeout(context.Background(), quickLookTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "qlmanage", "-t", "-s", fmt.Sprint(Size), "-o", tmp, src)
+	if err := cmd.Run(); err != nil {
+		return ErrUnsupported
+	}
+	img, err := Decode(filepath.Join(tmp, filepath.Base(src)+".png"), "png")
+	if err != nil {
+		return ErrUnsupported
+	}
+	return writeJPEG(out, Resize(img, Size))
 }

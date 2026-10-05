@@ -7,6 +7,7 @@ import (
 	"image/jpeg"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -315,7 +316,7 @@ func TestOrganizeByYearAndDuplicates(t *testing.T) {
 		t.Fatalf("duplicates = %+v", groups)
 	}
 
-	plan, err := organize.ByDate(lib.St, false)
+	plan, err := organize.ByDate(lib.St, lib.Root, organize.LayoutYear)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +327,7 @@ func TestOrganizeByYearAndDuplicates(t *testing.T) {
 	if exists(filepath.Join(lib.Root, "2019")) {
 		t.Fatal("planning touched the disk")
 	}
-	byMonth, _ := organize.ByDate(lib.St, true)
+	byMonth, _ := organize.ByDate(lib.St, lib.Root, organize.LayoutMonth)
 	if len(byMonth.Moves) != 1 || byMonth.Moves[0].To != "2019/06" {
 		t.Errorf("month plan = %+v", byMonth)
 	}
@@ -366,7 +367,7 @@ func TestSetDateWritesIntoTheFile(t *testing.T) {
 	if page, _ := lib.St.List(store.Filter{AlbumID: album}); page.Total != 1 {
 		t.Error("file dropped out of its album")
 	}
-	plan, _ := organize.ByDate(lib.St, false)
+	plan, _ := organize.ByDate(lib.St, lib.Root, organize.LayoutYear)
 	found := false
 	for _, m := range plan.Moves {
 		found = found || (m.ID == img.ID && m.To == "2004")
@@ -422,7 +423,7 @@ func TestSetDateFallsBackToTheIndex(t *testing.T) {
 	if got := byPath(t, lib, video.RelPath); got.TakenSrc != store.SrcManual || got.TakenAt != want.Unix() {
 		t.Errorf("after re-read: taken = %d (%s)", got.TakenAt, got.TakenSrc)
 	}
-	plan, _ := organize.ByDate(lib.St, false)
+	plan, _ := organize.ByDate(lib.St, lib.Root, organize.LayoutYear)
 	found := false
 	for _, m := range plan.Moves {
 		found = found || (m.ID == video.ID && m.To == "2006")
@@ -532,6 +533,162 @@ func TestOpenAdoptsLibraryFromOldName(t *testing.T) {
 	}
 	if tags, _ := reopened.St.FileTags(img.ID); len(tags) != 1 {
 		t.Error("tags lost while adopting the old data folder")
+	}
+}
+
+// datedJPEG writes a photo with a Takeout sidecar giving it a date in 2019.
+func datedJPEG(t *testing.T, root, rel string, shade uint8) {
+	t.Helper()
+	writeJPEG(t, filepath.Join(root, rel), shade)
+	write(t, filepath.Join(root, rel+".supplemental-metadata.json"),
+		`{"title":"x","photoTakenTime":{"timestamp":"1560600000"}}`)
+}
+
+func planTargets(t *testing.T, lib *Library, layout organize.Layout) map[string]string {
+	t.Helper()
+	plan, err := organize.ByDate(lib.St, lib.Root, layout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]string{}
+	for _, m := range plan.Moves {
+		out[m.From] = m.To
+	}
+	return out
+}
+
+func applyPlan(t *testing.T, lib *Library, layout organize.Layout) {
+	t.Helper()
+	plan, err := organize.ByDate(lib.St, lib.Root, layout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets := make([]fileops.Target, len(plan.Moves))
+	for i, m := range plan.Moves {
+		targets[i] = fileops.Target{ID: m.ID, DestDir: m.To}
+	}
+	if _, err := lib.Ops.Move(targets); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOrganizeKeepsFolderNames(t *testing.T) {
+	root := t.TempDir()
+	datedJPEG(t, root, "Bogdan/Party/p1.jpg", 10)
+	writeJPEG(t, filepath.Join(root, "Bogdan/Party/later.jpg"), 20) // no date yet
+	datedJPEG(t, root, "Other/Party/p2.jpg", 30)                    // same folder name, different folder
+	datedJPEG(t, root, "Old/2019/p3.jpg", 40)                       // folder already named after the year
+	datedJPEG(t, root, "loose.jpg", 50)                             // in the library root
+
+	lib, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { lib.Close() })
+	if _, err := lib.Scan(nil); err != nil {
+		t.Fatal(err)
+	}
+	process(t, lib)
+
+	want := map[string]string{
+		"Bogdan/Party/p1.jpg": "2019/Party",
+		"Other/Party/p2.jpg":  "2019/Party 2",
+		"Old/2019/p3.jpg":     "2019",
+		"loose.jpg":           "2019",
+	}
+	got := planTargets(t, lib, organize.LayoutFolder)
+	if len(got) != len(want) {
+		t.Fatalf("plan = %v, want %v", got, want)
+	}
+	for from, to := range want {
+		if got[from] != to {
+			t.Errorf("%s -> %q, want %q", from, got[from], to)
+		}
+	}
+
+	applyPlan(t, lib, organize.LayoutFolder)
+	for _, p := range []string{"2019/Party/p1.jpg", "2019/Party 2/p2.jpg", "2019/p3.jpg", "2019/loose.jpg"} {
+		if !exists(filepath.Join(root, p)) {
+			t.Errorf("%s missing after organize", p)
+		}
+	}
+	// Everything dated is in place now, so a second run has nothing to do.
+	if again := planTargets(t, lib, organize.LayoutFolder); len(again) != 0 {
+		t.Errorf("second plan = %v", again)
+	}
+
+	// A photo that gets its date later joins the folder its neighbours went to.
+	later := byPath(t, lib, "Bogdan/Party/later.jpg")
+	if _, err := lib.SetDate([]int64{later.ID}, time.Date(2019, 7, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	process(t, lib)
+	if got := planTargets(t, lib, organize.LayoutFolder); got["Bogdan/Party/later.jpg"] != "2019/Party" {
+		t.Errorf("late photo -> %v, want 2019/Party", got)
+	}
+
+	// A new, unrelated folder with a name that is now taken gets the next number.
+	datedJPEG(t, root, "Third/Party/p4.jpg", 60)
+	if _, err := lib.Scan(nil); err != nil {
+		t.Fatal(err)
+	}
+	process(t, lib)
+	if got := planTargets(t, lib, organize.LayoutFolder); got["Third/Party/p4.jpg"] != "2019/Party 3" {
+		t.Errorf("new folder -> %v, want 2019/Party 3", got)
+	}
+
+	// A photo filed by hand under another year stays there: New Year's Eve
+	// photos taken after midnight can be kept with the rest of the evening.
+	applyPlan(t, lib, organize.LayoutFolder)
+	p4 := byPath(t, lib, "2019/Party 3/p4.jpg")
+	if _, err := lib.Ops.Move([]fileops.Target{{ID: p4.ID, DestDir: "2018/New Year"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := planTargets(t, lib, organize.LayoutFolder); len(got) != 0 {
+		t.Errorf("hand-filed photo planned to move again: %v", got)
+	}
+	// The other layouts sort strictly by date and still pick it up.
+	if got := planTargets(t, lib, organize.LayoutYear); got["2018/New Year/p4.jpg"] != "2019" {
+		t.Errorf("year layout = %v", got)
+	}
+
+	if _, err := organize.ByDate(lib.St, lib.Root, "bogus"); err == nil {
+		t.Error("unknown layout accepted")
+	}
+}
+
+func TestVideoThumbnailOnMacOS(t *testing.T) {
+	sample := os.Getenv("YEARFOLD_TEST_VIDEO")
+	if runtime.GOOS != "darwin" || sample == "" {
+		t.Skip("set YEARFOLD_TEST_VIDEO to a video file to run this on macOS")
+	}
+	data, err := os.ReadFile(sample)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	write(t, filepath.Join(root, "clip.mov"), string(data))
+	lib, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { lib.Close() })
+	if _, err := lib.Scan(nil); err != nil {
+		t.Fatal(err)
+	}
+	clip := byPath(t, lib, "clip.mov")
+	p, err := lib.Thumbs.Get(clip.ID, lib.Abs(clip), clip.Ext, clip.Kind, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	cfg, err := jpeg.DecodeConfig(f)
+	if err != nil || cfg.Width == 0 || cfg.Width > 360 || cfg.Height > 360 {
+		t.Errorf("thumbnail = %dx%d, %v", cfg.Width, cfg.Height, err)
 	}
 }
 

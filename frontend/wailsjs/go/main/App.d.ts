@@ -12,7 +12,7 @@ export function AlbumFromDir(arg1:string):Promise<number>;
 
 export function ApplyChanges():Promise<void>;
 
-export function ApplyOrganize(arg1:boolean):Promise<number>;
+export function ApplyOrganize(arg1:string):Promise<number>;
 
 export function CheckChanges():Promise<main.ChangeReport>;
 
@@ -48,7 +48,7 @@ export function OpenLibrary(arg1:string):Promise<main.AppState>;
 
 export function PickFolder():Promise<main.AppState>;
 
-export function PlanOrganize(arg1:boolean):Promise<main.OrganizePreview>;
+export function PlanOrganize(arg1:string):Promise<main.OrganizePreview>;
 
 export function RemoveFromAlbum(arg1:number,arg2:Array<number>):Promise<void>;
 

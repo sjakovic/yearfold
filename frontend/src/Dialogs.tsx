@@ -2,7 +2,7 @@ import {ReactNode, useEffect, useState} from 'react'
 import {
     Album, api, ChangeReport, errorText, fromDateInput, OrganizePreview, TakeoutResult, TakeoutSummary, toDateInput,
 } from './api'
-import {useT} from './i18n'
+import {Key, useT} from './i18n'
 
 export function Modal({title, onClose, children, wide}: {title: string; onClose: () => void; children: ReactNode; wide?: boolean}) {
     useEffect(() => {
@@ -217,21 +217,28 @@ export function ChangesDialog({onApplied, onClose}: {onApplied: () => void; onCl
     )
 }
 
+const LAYOUTS: {value: string; label: Key}[] = [
+    {value: 'folder', label: 'orgLayoutFolder'},
+    {value: 'year', label: 'orgLayoutYear'},
+    {value: 'month', label: 'orgLayoutMonth'},
+]
+
 export function OrganizeDialog({onApplied, onClose}: {onApplied: (moved: number) => void; onClose: () => void}) {
     const t = useT()
-    const [byMonth, setByMonth] = useState(false)
+    const [layout, setLayout] = useState(LAYOUTS[0].value)
     const [preview, setPreview] = useState<OrganizePreview | null>(null)
     const [error, setError] = useState('')
     const [busy, setBusy] = useState(false)
 
     useEffect(() => {
         setPreview(null)
-        api.PlanOrganize(byMonth).then(setPreview).catch(e => setError(errorText(e)))
-    }, [byMonth])
+        setError('')
+        api.PlanOrganize(layout).then(setPreview).catch(e => setError(errorText(e)))
+    }, [layout])
 
     const apply = () => {
         setBusy(true)
-        api.ApplyOrganize(byMonth).then(onApplied).catch(e => {
+        api.ApplyOrganize(layout).then(onApplied).catch(e => {
             setError(errorText(e))
             setBusy(false)
         })
@@ -242,10 +249,15 @@ export function OrganizeDialog({onApplied, onClose}: {onApplied: (moved: number)
             <p className="muted">
                 {t('orgText')}
             </p>
-            <label className="check">
-                <input type="checkbox" checked={byMonth} onChange={e => setByMonth(e.target.checked)}/>
-                {t('orgByMonth')}
-            </label>
+            <div className="options">
+                {LAYOUTS.map(l => (
+                    <label key={l.value} className="check">
+                        <input type="radio" name="layout" checked={layout === l.value} onChange={() => setLayout(l.value)}/>
+                        {t(l.label)}
+                    </label>
+                ))}
+            </div>
+            {layout === 'folder' && <p className="muted">{t('orgLayoutFolderHint')}</p>}
             {error && <p className="error">{error}</p>}
             {!preview && !error && <p className="muted">{t('orgPlanning')}</p>}
             {preview && (

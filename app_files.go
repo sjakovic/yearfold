@@ -75,14 +75,15 @@ type OrganizePreview struct {
 	Moves  []organize.Move `json:"moves"` // sample
 }
 
-// PlanOrganize previews sorting media into year (or year/month) folders.
-func (a *App) PlanOrganize(byMonth bool) (OrganizePreview, error) {
+// PlanOrganize previews sorting media into year folders. layout is one of
+// "year", "month" or "folder" (see organize.Layout).
+func (a *App) PlanOrganize(layout string) (OrganizePreview, error) {
 	p := OrganizePreview{Moves: []organize.Move{}}
 	lib, err := a.library()
 	if err != nil {
 		return p, err
 	}
-	plan, err := organize.ByDate(lib.St, byMonth)
+	plan, err := organize.ByDate(lib.St, lib.Root, organize.Layout(layout))
 	if err != nil {
 		return p, err
 	}
@@ -95,12 +96,12 @@ func (a *App) PlanOrganize(byMonth bool) (OrganizePreview, error) {
 }
 
 // ApplyOrganize performs the moves PlanOrganize previews, as one undoable batch.
-func (a *App) ApplyOrganize(byMonth bool) (int, error) {
+func (a *App) ApplyOrganize(layout string) (int, error) {
 	lib, err := a.library()
 	if err != nil {
 		return 0, err
 	}
-	plan, err := organize.ByDate(lib.St, byMonth)
+	plan, err := organize.ByDate(lib.St, lib.Root, organize.Layout(layout))
 	if err != nil {
 		return 0, err
 	}
