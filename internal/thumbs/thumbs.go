@@ -26,10 +26,8 @@ import (
 	"github.com/sjakovic/yearfold/internal/store"
 )
 
-// Size is the longest edge of a thumbnail in pixels.
 const Size = 360
 
-// ErrUnsupported means no thumbnail can be made for the file.
 var ErrUnsupported = errors.New("thumbnail not supported")
 
 type Manager struct {
@@ -52,10 +50,8 @@ func (m *Manager) path(id int64) string {
 	return filepath.Join(m.dir, fmt.Sprintf("%02x", id&0xff), fmt.Sprintf("%d.jpg", id))
 }
 
-// Remove drops the cached thumbnail of a file.
 func (m *Manager) Remove(id int64) { os.Remove(m.path(id)) }
 
-// Clear deletes the whole cache.
 func (m *Manager) Clear() error {
 	if err := os.RemoveAll(m.dir); err != nil {
 		return err
@@ -63,7 +59,6 @@ func (m *Manager) Clear() error {
 	return os.MkdirAll(m.dir, 0o755)
 }
 
-// Get returns the path of the cached thumbnail, generating it if needed.
 func (m *Manager) Get(id int64, src, ext, kind string, orientation int) (string, error) {
 	out := m.path(id)
 	if _, err := os.Stat(out); err == nil {
@@ -128,7 +123,6 @@ func writeJPEG(out string, img image.Image) error {
 	return f.Close()
 }
 
-// Decode fully decodes an image file of a supported format.
 func Decode(src, ext string) (image.Image, error) {
 	f, err := os.Open(src)
 	if err != nil {
@@ -149,7 +143,6 @@ func decodeReader(r io.Reader, ext string) (image.Image, error) {
 	return nil, ErrUnsupported
 }
 
-// Resize scales img down so its longest edge is at most max.
 func Resize(img image.Image, max int) image.Image {
 	b := img.Bounds()
 	w, h := b.Dx(), b.Dy()
@@ -171,7 +164,6 @@ func Resize(img image.Image, max int) image.Image {
 	return dst
 }
 
-// Orient applies an EXIF orientation (1-8) so the result displays upright.
 func Orient(img image.Image, orientation int) image.Image {
 	if orientation <= 1 || orientation > 8 {
 		return img
@@ -209,9 +201,6 @@ func Orient(img image.Image, orientation int) image.Image {
 	return dst
 }
 
-// videoFrame saves a still of a video as a JPEG. No pure Go decoder exists
-// for common video codecs, so this relies on what the system offers: ffmpeg
-// when it is installed, otherwise Quick Look on macOS.
 func videoFrame(src, out string) error {
 	if ffmpegFrame(src, out) == nil {
 		return nil
@@ -239,12 +228,8 @@ func ffmpegFrame(src, out string) error {
 	return nil
 }
 
-// quickLookTimeout bounds one Quick Look run; a damaged video must not hold
-// a thumbnail worker forever.
 const quickLookTimeout = 30 * time.Second
 
-// quickLookFrame asks macOS Quick Look, the service behind Finder's own
-// previews, for a thumbnail. It writes "<name>.png" into a directory.
 func quickLookFrame(src, out string) error {
 	tmp, err := os.MkdirTemp("", "yearfold-ql-")
 	if err != nil {

@@ -23,17 +23,17 @@ const (
 	KindSidecar = "sidecar"
 	KindOther   = "other"
 
-	// SrcMtime marks a taken_at that is only the file modification time.
 	SrcMtime   = "mtime"
 	SrcExif    = "exif"
 	SrcTakeout = "takeout"
-	// SrcManual marks a date the user set that lives only in the index,
-	// because the file format cannot hold it.
-	SrcManual = "manual"
+	SrcManual  = "manual"
+
+	OpMove  = "move"
+	OpTrash = "trash"
 )
 
 type Store struct {
-	DB *sql.DB
+	db *sql.DB
 }
 
 var migrations = []string{
@@ -103,20 +103,15 @@ var migrations = []string{
 	);
 	CREATE INDEX ops_batch ON ops(batch);`,
 
-	// EXIF dates used to be read in the computer's time zone; read them again
-	// so they are stored as the camera's wall-clock time.
 	`UPDATE files SET meta_done = 0 WHERE taken_src = 'exif';`,
 
 	`ALTER TABLE files ADD COLUMN date_override INTEGER NOT NULL DEFAULT 0;`,
 
-	// Keep a copy of the Takeout sidecar data in the index, and read the files
-	// that have a sidecar again so the copy gets filled in.
 	`ALTER TABLE files ADD COLUMN takeout_json TEXT NOT NULL DEFAULT '';
 	UPDATE files SET meta_done = 0 WHERE taken_src = 'takeout'
 		OR id IN (SELECT sidecar_of FROM files WHERE sidecar_of IS NOT NULL);`,
 }
 
-// Open opens (creating and migrating if needed) the database at path.
 func Open(path string) (*Store, error) {
 	p := filepath.ToSlash(path)
 	if !strings.HasPrefix(p, "/") {
@@ -133,32 +128,32 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Store{DB: db}
+	s := &Store{db: db}
 	if err := s.migrate(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	return s, nil
 }
 
-func (s *Store) Close() error { return s.DB.Close() }
+func (s *Store) Close() error { return s.db.Close() }
 
 func (s *Store) migrate() error {
 	var v int
-	if err := s.DB.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil {
+	if err := s.db.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil {
 		return err
 	}
 	for ; v < len(migrations); v++ {
-		tx, err := s.DB.Begin()
+		tx, err := s.db.Begin()
 		if err != nil {
 			return err
 		}
 		if _, err := tx.Exec(migrations[v]); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("migration %d: %w", v+1, err)
 		}
 		if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, v+1)); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return err
 		}
 		if err := tx.Commit(); err != nil {
@@ -168,21 +163,18 @@ func (s *Store) migrate() error {
 	return nil
 }
 
-// InTx runs fn inside a transaction.
-func (s *Store) InTx(fn func(tx *sql.Tx) error) error {
-	tx, err := s.DB.Begin()
+func (s *Store) inTx(fn func(tx *sql.Tx) error) error {
+	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	if err := fn(tx); err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return err
 	}
 	return tx.Commit()
 }
 
-// SplitPath splits a slash-separated relative path into dir, name and
-// lower-cased extension (without the dot).
 func SplitPath(rel string) (dir, name, ext string) {
 	name = rel
 	if i := strings.LastIndex(rel, "/"); i >= 0 {
@@ -205,7 +197,6 @@ var videoExts = map[string]bool{
 	"webm": true, "mpg": true, "mpeg": true, "mts": true, "wmv": true,
 }
 
-// KindOf classifies a file by its extension.
 func KindOf(ext string) string {
 	switch {
 	case imageExts[ext]:

@@ -1,0 +1,21 @@
+version: "2"
+
+linters:
+  enable:
+    - errorlint
+    - misspell
+    - unconvert
+    - unparam
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*os.File).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Tx).Rollback
+        - os.Remove
+        - os.RemoveAll
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

@@ -7,7 +7,6 @@ import (
 	"strings"
 )
 
-// Takeout is the useful part of a Google Takeout JSON sidecar.
 type Takeout struct {
 	Title       string   `json:"title,omitempty"`
 	Description string   `json:"description,omitempty"`
@@ -35,7 +34,6 @@ type geo struct {
 	Longitude float64 `json:"longitude"`
 }
 
-// ParseTakeout decodes a sidecar. ok is false when data is not a photo sidecar.
 func ParseTakeout(data []byte) (t Takeout, ok bool) {
 	var raw takeoutRaw
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -63,11 +61,6 @@ const supplemental = ".supplemental-metadata"
 
 var counterRe = regexp.MustCompile(`\((\d+)\)$`)
 
-// MatchSidecar finds the media file a Takeout JSON belongs to among the names
-// in the same directory. It handles the Takeout quirks: the
-// ".supplemental-metadata" suffix (possibly truncated), names cut at the
-// length limit, and the "(1)" duplicate counter that sits before ".json" on
-// the sidecar but before the extension on the media file.
 func MatchSidecar(jsonName string, mediaNames []string) (string, bool) {
 	lower := strings.ToLower(jsonName)
 	if !strings.HasSuffix(lower, ".json") {
@@ -108,15 +101,12 @@ func MatchSidecar(jsonName string, mediaNames []string) (string, bool) {
 			prefixes++
 		}
 	}
-	// A truncated name is only trusted when it points at exactly one file.
 	if prefixes == 1 {
 		return prefixMatch, true
 	}
 	return "", false
 }
 
-// EditedOriginal returns the name of the original for a Takeout "-edited"
-// variant, which has no sidecar of its own.
 func EditedOriginal(mediaName string) (string, bool) {
 	i := strings.LastIndex(mediaName, ".")
 	if i <= 0 {

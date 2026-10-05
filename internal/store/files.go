@@ -6,33 +6,30 @@ import (
 	"time"
 )
 
-// File is a full row of the files table.
 type File struct {
-	ID          int64   `json:"id"`
-	RelPath     string  `json:"relPath"`
-	Dir         string  `json:"dir"`
-	Name        string  `json:"name"`
-	Ext         string  `json:"ext"`
-	Kind        string  `json:"kind"`
-	Size        int64   `json:"size"`
-	Mtime       int64   `json:"mtime"`
-	Hash        string  `json:"hash"`
-	TakenAt     int64   `json:"takenAt"`
-	TakenSrc    string  `json:"takenSrc"`
-	Width       int     `json:"width"`
-	Height      int     `json:"height"`
-	Orientation int     `json:"orientation"`
-	Camera      string  `json:"camera"`
-	HasGPS      bool    `json:"hasGps"`
-	Lat         float64 `json:"lat"`
-	Lon         float64 `json:"lon"`
-	MetaJSON    string  `json:"metaJson"`
-	SidecarOf   int64   `json:"sidecarOf"`
-	Status      string  `json:"status"`
-	TrashPath   string  `json:"trashPath"`
-	// DateOverride is a user-set capture date (Unix seconds) that takes
-	// precedence over metadata; 0 when there is none.
-	DateOverride int64 `json:"dateOverride"`
+	ID           int64   `json:"id"`
+	RelPath      string  `json:"relPath"`
+	Dir          string  `json:"dir"`
+	Name         string  `json:"name"`
+	Ext          string  `json:"ext"`
+	Kind         string  `json:"kind"`
+	Size         int64   `json:"size"`
+	Mtime        int64   `json:"mtime"`
+	Hash         string  `json:"hash"`
+	TakenAt      int64   `json:"takenAt"`
+	TakenSrc     string  `json:"takenSrc"`
+	Width        int     `json:"width"`
+	Height       int     `json:"height"`
+	Orientation  int     `json:"orientation"`
+	Camera       string  `json:"camera"`
+	HasGPS       bool    `json:"hasGps"`
+	Lat          float64 `json:"lat"`
+	Lon          float64 `json:"lon"`
+	MetaJSON     string  `json:"metaJson"`
+	SidecarOf    int64   `json:"sidecarOf"`
+	Status       string  `json:"status"`
+	TrashPath    string  `json:"trashPath"`
+	DateOverride int64   `json:"dateOverride"`
 }
 
 const fileCols = `id, rel_path, dir, name, ext, kind, size, mtime, hash, taken_at, taken_src,
@@ -49,7 +46,7 @@ func scanFile(r scanner) (File, error) {
 }
 
 func (s *Store) queryFiles(q string, args ...any) ([]File, error) {
-	rows, err := s.DB.Query(q, args...)
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -66,16 +63,14 @@ func (s *Store) queryFiles(q string, args ...any) ([]File, error) {
 }
 
 func (s *Store) GetFile(id int64) (File, error) {
-	return scanFile(s.DB.QueryRow(`SELECT `+fileCols+` FROM files WHERE id = ?`, id))
+	return scanFile(s.db.QueryRow(`SELECT `+fileCols+` FROM files WHERE id = ?`, id))
 }
 
-// Sidecars returns the present sidecar files attached to a media file.
 func (s *Store) Sidecars(id int64) ([]File, error) {
 	return s.queryFiles(`SELECT `+fileCols+` FROM files WHERE sidecar_of = ? AND status = 'present'`, id)
 }
 
-// InsertFile adds a newly discovered file and returns its id.
-func InsertFile(tx *sql.Tx, rel string, size, mtime int64) (int64, error) {
+func insertFile(tx *sql.Tx, rel string, size, mtime int64) (int64, error) {
 	dir, name, ext := SplitPath(rel)
 	res, err := tx.Exec(`INSERT INTO files (rel_path, dir, name, ext, kind, size, mtime, taken_at, taken_src)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, rel, dir, name, ext, KindOf(ext), size, mtime, mtime, SrcMtime)
@@ -85,21 +80,18 @@ func InsertFile(tx *sql.Tx, rel string, size, mtime int64) (int64, error) {
 	return res.LastInsertId()
 }
 
-// SetPath points a file row at a new relative path.
-func SetPath(tx *sql.Tx, id int64, rel string) error {
+func setPath(tx *sql.Tx, id int64, rel string) error {
 	dir, name, ext := SplitPath(rel)
 	_, err := tx.Exec(`UPDATE files SET rel_path = ?, dir = ?, name = ?, ext = ? WHERE id = ?`, rel, dir, name, ext, id)
 	return err
 }
 
-// PathTaken reports whether a present file already occupies rel.
 func (s *Store) PathTaken(rel string) (bool, error) {
 	var n int
-	err := s.DB.QueryRow(`SELECT COUNT(*) FROM files WHERE rel_path = ? AND status = 'present'`, rel).Scan(&n)
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM files WHERE rel_path = ? AND status = 'present'`, rel).Scan(&n)
 	return n > 0, err
 }
 
-// Item is the light representation used by the grid.
 type Item struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`
@@ -111,7 +103,6 @@ type Item struct {
 	Hash     string `json:"hash"`
 }
 
-// Filter selects files for the grid.
 type Filter struct {
 	InDir     bool   `json:"inDir"`
 	Dir       string `json:"dir"`
@@ -188,7 +179,7 @@ func (s *Store) List(f Filter) (Page, error) {
 	base := ` FROM files f` + join + ` WHERE ` + strings.Join(where, " AND ")
 
 	var p Page
-	if err := s.DB.QueryRow(`SELECT COUNT(*)`+base, args...).Scan(&p.Total); err != nil {
+	if err := s.db.QueryRow(`SELECT COUNT(*)`+base, args...).Scan(&p.Total); err != nil {
 		return p, err
 	}
 
@@ -203,7 +194,7 @@ func (s *Store) List(f Filter) (Page, error) {
 	if limit <= 0 {
 		limit = 500
 	}
-	rows, err := s.DB.Query(`SELECT f.id, f.name, f.rel_path, f.kind, f.size, f.taken_at, f.taken_src, f.hash`+
+	rows, err := s.db.Query(`SELECT f.id, f.name, f.rel_path, f.kind, f.size, f.taken_at, f.taken_src, f.hash`+
 		base+order+` LIMIT ? OFFSET ?`, append(args, limit, f.Offset)...)
 	if err != nil {
 		return p, err
@@ -225,9 +216,8 @@ type DirCount struct {
 	Count int    `json:"count"`
 }
 
-// Dirs returns every directory that directly contains present files.
 func (s *Store) Dirs() ([]DirCount, error) {
-	rows, err := s.DB.Query(`SELECT dir, COUNT(*) FROM files WHERE status = 'present' GROUP BY dir ORDER BY dir`)
+	rows, err := s.db.Query(`SELECT dir, COUNT(*) FROM files WHERE status = 'present' GROUP BY dir ORDER BY dir`)
 	if err != nil {
 		return nil, err
 	}
@@ -248,9 +238,8 @@ type YearCount struct {
 	Count int `json:"count"`
 }
 
-// Years returns media counts per year for files with a real capture date.
 func (s *Store) Years() ([]YearCount, error) {
-	rows, err := s.DB.Query(`SELECT CAST(strftime('%Y', taken_at, 'unixepoch') AS INTEGER) y, COUNT(*)
+	rows, err := s.db.Query(`SELECT CAST(strftime('%Y', taken_at, 'unixepoch') AS INTEGER) y, COUNT(*)
 		FROM files WHERE status = 'present' AND kind IN ('image', 'video') AND taken_src NOT IN ('', 'mtime')
 		GROUP BY y ORDER BY y DESC`)
 	if err != nil {
@@ -279,7 +268,7 @@ type Stats struct {
 
 func (s *Store) Stats() (Stats, error) {
 	var st Stats
-	err := s.DB.QueryRow(`SELECT
+	err := s.db.QueryRow(`SELECT
 		COALESCE(SUM(status = 'present'), 0),
 		COALESCE(SUM(status = 'present' AND kind IN ('image', 'video')), 0),
 		COALESCE(SUM(status = 'present' AND kind IN ('other', 'sidecar')), 0),
@@ -290,9 +279,8 @@ func (s *Store) Stats() (Stats, error) {
 	return st, err
 }
 
-// Duplicates returns groups of present media files sharing the same content hash.
 func (s *Store) Duplicates() ([][]Item, error) {
-	rows, err := s.DB.Query(`SELECT id, name, rel_path, kind, size, taken_at, taken_src, hash FROM files
+	rows, err := s.db.Query(`SELECT id, name, rel_path, kind, size, taken_at, taken_src, hash FROM files
 		WHERE status = 'present' AND kind IN ('image', 'video') AND hash != '' AND hash IN (
 			SELECT hash FROM files WHERE status = 'present' AND kind IN ('image', 'video') AND hash != ''
 			GROUP BY hash HAVING COUNT(*) > 1)

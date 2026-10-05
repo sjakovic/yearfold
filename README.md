@@ -84,10 +84,23 @@ operating system's config directory.
 
 ## Getting started
 
-There are no prebuilt downloads yet; build it from source.
+Download the build for your system from the
+[latest release](https://github.com/sjakovic/yearfold/releases/latest):
 
-**Requirements:** [Go](https://go.dev) 1.25+, [Node.js](https://nodejs.org) 20+
-and the [Wails v2 CLI](https://wails.io/docs/gettingstarted/installation).
+| System | File |
+|---|---|
+| macOS (Apple silicon and Intel) | `Yearfold-macos.zip` |
+| Windows | `Yearfold-windows-amd64.exe` |
+| Linux | `Yearfold-linux-amd64.tar.gz` |
+
+The builds are not signed. On macOS, right-click the app and choose **Open**
+the first time; on Windows, choose **More info → Run anyway**. The Linux build
+needs GTK 3 and WebKitGTK 4.0. Day-to-day development and testing happen on
+macOS.
+
+To build it yourself you need [Go](https://go.dev) 1.25+,
+[Node.js](https://nodejs.org) 20+ and the
+[Wails v2 CLI](https://wails.io/docs/gettingstarted/installation):
 
 ```sh
 git clone https://github.com/sjakovic/yearfold.git
@@ -95,9 +108,7 @@ cd yearfold
 wails build
 ```
 
-The app is created in `build/bin`. Yearfold is built with Wails, which targets
-macOS, Windows and Linux; so far it has been developed and tested on macOS
-(Apple silicon).
+The app is created in `build/bin`.
 
 Video thumbnails work out of the box on macOS (via Quick Look). On Windows and
 Linux they need `ffmpeg` on the `PATH`; without it videos show an icon.
@@ -116,27 +127,31 @@ Try it on a copy of a small part of your library first.
 ## Development
 
 ```sh
-wails dev        # run with live reload
-go test ./...    # backend tests
-wails build      # production build
+wails dev                      # run with live reload
+go test ./...                  # backend tests
+golangci-lint run ./...        # backend lint
+cd frontend && npm test        # frontend tests
+cd frontend && npm run lint    # frontend lint
 ```
 
 ```
-main.go, app*.go     entry point and the API exposed to the UI
-internal/store       SQLite index: files, tags, albums, operations journal
-internal/scanner     walks the library and diffs it against the index
-internal/meta        reads metadata and Takeout sidecars, writes dates
-internal/thumbs      on-demand thumbnail cache
-internal/fileops     move, trash, restore, undo
-internal/organize    rule-based move plans (by year)
-internal/library     ties the above together for one library
-internal/assets      serves thumbnails and originals to the webview
-frontend/            React + TypeScript UI
+main.go                entry point
+internal/app           the API the UI calls
+internal/library       one open library: scanning, metadata, dates, Takeout
+internal/store         SQLite index; the only package that talks to the database
+internal/scanner       compares the disk with the index
+internal/fileops       move, trash, restore, undo
+internal/organize      plans moves into year folders
+internal/meta          reads metadata and Takeout sidecars, writes dates
+internal/thumbs        thumbnail cache
+internal/assets        serves thumbnails and originals to the webview
+internal/settings      per-user preferences
+frontend/src
+  components/          React components, dialogs in components/dialogs
+  context/             state of the open library, notifications
+  hooks/               data loading, selection, backend events
+  lib/                 API bindings, translations, helpers
 ```
-
-The backend is plain Go with a pure-Go SQLite driver, so the logic in
-`internal/` builds and tests without cgo. The UI talks to it only through the
-methods in `app*.go`.
 
 The project follows [Semantic Versioning](https://semver.org/). The version
 lives in `wails.json` (`info.productVersion`), is embedded into the binary and

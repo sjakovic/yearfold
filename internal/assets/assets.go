@@ -12,10 +12,8 @@ import (
 	"github.com/sjakovic/yearfold/internal/thumbs"
 )
 
-// previewSize is the longest edge of formats converted for the browser.
 const previewSize = 2560
 
-// Handler serves /thumb/{id} and /file/{id} for the currently open library.
 func Handler(current func() *library.Library) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		kind, rest, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
@@ -32,7 +30,6 @@ func Handler(current func() *library.Library) http.Handler {
 		}
 		src := lib.Abs(f)
 		heic := f.Ext == "heic" || f.Ext == "heif"
-		// HEIC decoding already applies the stored rotation.
 		orientation := f.Orientation
 		if heic {
 			orientation = 1
@@ -49,7 +46,6 @@ func Handler(current func() *library.Library) http.Handler {
 			return
 		}
 
-		// Webviews on Windows and Linux cannot show HEIC, so it is converted.
 		if heic {
 			img, err := thumbs.Decode(src, f.Ext)
 			if err != nil {
@@ -57,7 +53,7 @@ func Handler(current func() *library.Library) http.Handler {
 				return
 			}
 			w.Header().Set("Content-Type", "image/jpeg")
-			jpeg.Encode(w, thumbs.Resize(img, previewSize), &jpeg.Options{Quality: 90})
+			_ = jpeg.Encode(w, thumbs.Resize(img, previewSize), &jpeg.Options{Quality: 90})
 			return
 		}
 		http.ServeFile(w, r, src)

@@ -8,6 +8,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
-// Info is the metadata embedded in an image file.
 type Info struct {
 	TakenAt     int64
 	Width       int
@@ -27,8 +27,7 @@ type Info struct {
 	Camera      string
 	HasGPS      bool
 	Lat, Lon    float64
-	// Tags holds every decoded tag as "Source:Name" -> printable value.
-	Tags map[string]string
+	Tags        map[string]string
 }
 
 var formats = map[string]imagemeta.ImageFormat{
@@ -39,8 +38,6 @@ var formats = map[string]imagemeta.ImageFormat{
 
 const maxTagLen = 300
 
-// Extract reads EXIF/IPTC/XMP and dimensions. Formats without embedded
-// metadata support still get dimensions when the image can be decoded.
 func Extract(path, ext string) (Info, error) {
 	info := Info{Orientation: 1, Tags: map[string]string{}}
 	f, err := os.Open(path)
@@ -92,7 +89,6 @@ func Extract(path, ext string) (Info, error) {
 				}
 			}
 		}
-		// Many cameras repeat the make inside the model name.
 		if len(cam) == 2 && strings.HasPrefix(strings.ToLower(cam[1]), strings.ToLower(cam[0])) {
 			cam = cam[1:]
 		}
@@ -116,9 +112,6 @@ func Extract(path, ext string) (Info, error) {
 	return info, nil
 }
 
-// wallClock re-expresses t's local date and time as UTC. EXIF dates carry no
-// reliable time zone, so the index keeps what the camera's clock showed and
-// the UI displays it unchanged, whatever zone the computer is in.
 func wallClock(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, time.UTC)
 }
@@ -152,7 +145,6 @@ func toInt(v any) int {
 	case uint64:
 		return int(n)
 	}
-	var n int
-	fmt.Sscan(fmt.Sprint(v), &n)
+	n, _ := strconv.Atoi(fmt.Sprint(v))
 	return n
 }

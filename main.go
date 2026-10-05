@@ -8,19 +8,17 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
+	"github.com/sjakovic/yearfold/internal/app"
 	"github.com/sjakovic/yearfold/internal/assets"
 )
 
 //go:embed all:frontend/dist
 var frontend embed.FS
 
-// wails.json is the single source of the application version.
-//
 //go:embed wails.json
 var projectConfig []byte
 
-// appVersion reads the product version from the embedded project config.
-func appVersion() string {
+func version() string {
 	var cfg struct {
 		Info struct {
 			ProductVersion string `json:"productVersion"`
@@ -33,7 +31,7 @@ func appVersion() string {
 }
 
 func main() {
-	app := NewApp(appVersion())
+	api := app.New(version())
 
 	err := wails.Run(&options.App{
 		Title:     "Yearfold",
@@ -43,16 +41,13 @@ func main() {
 		MinHeight: 600,
 		AssetServer: &assetserver.Options{
 			Assets:  frontend,
-			Handler: assets.Handler(app.current),
+			Handler: assets.Handler(app.CurrentLibrary(api)),
 		},
 		BackgroundColour: &options.RGBA{R: 24, G: 26, B: 30, A: 1},
-		OnStartup:        app.startup,
-		OnShutdown:       app.shutdown,
-		Bind: []interface{}{
-			app,
-		},
+		OnStartup:        app.Startup(api),
+		OnShutdown:       app.Shutdown(api),
+		Bind:             []interface{}{api},
 	})
-
 	if err != nil {
 		println("Error:", err.Error())
 	}

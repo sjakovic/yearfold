@@ -1,5 +1,4 @@
-// Package organize plans rule-based moves, such as sorting media into
-// per-year folders. Planning never changes anything on disk.
+// Package organize plans moves of media into year folders.
 package organize
 
 import (
@@ -14,41 +13,25 @@ import (
 	"github.com/sjakovic/yearfold/internal/store"
 )
 
-// Layout is the folder structure media is sorted into.
 type Layout string
 
 const (
-	// LayoutYear puts everything directly into "2005".
-	LayoutYear Layout = "year"
-	// LayoutMonth puts everything into "2005/03".
-	LayoutMonth Layout = "month"
-	// LayoutFolder keeps the name of the folder a file is in: "2005/Trip to Rome".
-	// Files that already are inside a year folder are left where they are,
-	// whatever their date, so folders arranged by hand stay as arranged.
-	LayoutFolder Layout = "folder"
+	LayoutYear   Layout = "year"   // 2005
+	LayoutMonth  Layout = "month"  // 2005/03
+	LayoutFolder Layout = "folder" // 2005/Trip to Rome
 )
 
 type Move struct {
 	ID   int64  `json:"id"`
 	From string `json:"from"`
-	To   string `json:"to"` // destination directory
+	To   string `json:"to"`
 }
 
 type Plan struct {
-	Moves []Move `json:"moves"`
-	// NoDate counts media skipped because it has no reliable capture date.
-	NoDate int `json:"noDate"`
+	Moves  []Move `json:"moves"`
+	NoDate int    `json:"noDate"`
 }
 
-type mediaFile struct {
-	id       int64
-	rel, dir string
-	takenAt  int64
-	src      string
-}
-
-// ByDate plans moving every dated media file of the library at root into
-// year folders at the top of the library, following layout.
 func ByDate(st *store.Store, root string, layout Layout) (Plan, error) {
 	plan := Plan{Moves: []Move{}}
 	switch layout {
@@ -56,7 +39,7 @@ func ByDate(st *store.Store, root string, layout Layout) (Plan, error) {
 	default:
 		return plan, fmt.Errorf("unknown layout %q", layout)
 	}
-	files, err := mediaFiles(st)
+	media, err := st.Media()
 	if err != nil {
 		return plan, err
 	}
@@ -67,12 +50,12 @@ func ByDate(st *store.Store, root string, layout Layout) (Plan, error) {
 		}
 	}
 
-	for _, f := range files {
-		if f.src == "" || f.src == store.SrcMtime {
+	for _, m := range media {
+		if !m.HasDate() {
 			plan.NoDate++
 			continue
 		}
-		t := time.Unix(f.takenAt, 0).UTC()
+		t := time.Unix(m.TakenAt, 0).UTC()
 		year := fmt.Sprintf("%04d", t.Year())
 
 		var dest string
@@ -82,37 +65,18 @@ func ByDate(st *store.Store, root string, layout Layout) (Plan, error) {
 		case LayoutMonth:
 			dest = fmt.Sprintf("%s/%02d", year, int(t.Month()))
 		case LayoutFolder:
-			if inYearFolder(f.dir) {
+			if inYearFolder(m.Dir) {
 				continue
 			}
-			dest = folders.destination(f.dir, year)
+			dest = folders.destination(m.Dir, year)
 		}
-		if f.dir != dest {
-			plan.Moves = append(plan.Moves, Move{ID: f.id, From: f.rel, To: dest})
+		if m.Dir != dest {
+			plan.Moves = append(plan.Moves, Move{ID: m.ID, From: m.RelPath, To: dest})
 		}
 	}
 	return plan, nil
 }
 
-func mediaFiles(st *store.Store) ([]mediaFile, error) {
-	rows, err := st.DB.Query(`SELECT id, rel_path, dir, taken_at, taken_src FROM files
-		WHERE status = 'present' AND kind IN ('image', 'video') ORDER BY rel_path`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []mediaFile
-	for rows.Next() {
-		var f mediaFile
-		if err := rows.Scan(&f.id, &f.rel, &f.dir, &f.takenAt, &f.src); err != nil {
-			return nil, err
-		}
-		out = append(out, f)
-	}
-	return out, rows.Err()
-}
-
-// isYear reports whether name looks like a year folder: four digits.
 func isYear(name string) bool {
 	if len(name) != 4 {
 		return false
@@ -125,29 +89,20 @@ func isYear(name string) bool {
 	return true
 }
 
-// inYearFolder reports whether dir is a year folder or anything below one.
 func inYearFolder(dir string) bool {
 	top, _, _ := strings.Cut(dir, "/")
 	return isYear(top)
 }
 
-// source identifies the files of one original folder that belong to one year.
 type source struct {
 	dir, year string
 }
 
-// folderNamer picks the destination folder for LayoutFolder. All files of a
-// source folder and year share one destination; different source folders
-// that happen to have the same name get "Name", "Name 2", "Name 3", ...
 type folderNamer struct {
-	root string
-	// existing holds every folder that already contains indexed files.
+	root     string
 	existing map[string]bool
-	// assigned maps a source to its destination, seeded from earlier moves
-	// so that files organized later join the ones moved before.
 	assigned map[source]string
-	// owned holds the destinations that already belong to a source.
-	owned map[string]bool
+	owned    map[string]bool
 }
 
 func newFolderNamer(st *store.Store, root string) (*folderNamer, error) {
@@ -158,32 +113,25 @@ func newFolderNamer(st *store.Store, root string) (*folderNamer, error) {
 		return nil, err
 	}
 	for _, d := range dirs {
-		// A folder exists as soon as anything lives in it or below it.
 		for dir := d.Dir; dir != "" && dir != "."; dir = path.Dir(dir) {
 			n.existing[dir] = true
 		}
 	}
 
-	rows, err := st.DB.Query(`SELECT from_path, to_path FROM ops WHERE type = 'move' AND undone = 0 ORDER BY id`)
+	history, err := st.MoveHistory()
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var from, to string
-		if err := rows.Scan(&from, &to); err != nil {
-			return nil, err
-		}
-		fromDir, _, _ := store.SplitPath(from)
-		toDir, _, _ := store.SplitPath(to)
-		// Only moves into "<year>/<name>" tell where a source folder went.
+	for _, h := range history {
+		fromDir, _, _ := store.SplitPath(h.From)
+		toDir, _, _ := store.SplitPath(h.To)
 		year, name, _ := strings.Cut(toDir, "/")
 		if isYear(year) && name != "" && !strings.Contains(name, "/") {
 			n.assigned[source{dir: fromDir, year: year}] = toDir
 			n.owned[toDir] = true
 		}
 	}
-	return n, rows.Err()
+	return n, nil
 }
 
 func (n *folderNamer) destination(dir, year string) string {
@@ -192,8 +140,6 @@ func (n *folderNamer) destination(dir, year string) string {
 		return dest
 	}
 	name := path.Base(dir)
-	// Files in the library root, or in a folder already named after the year,
-	// go straight into the year folder.
 	if dir == "" || name == year {
 		return year
 	}
@@ -210,8 +156,6 @@ func (n *folderNamer) destination(dir, year string) string {
 	}
 }
 
-// taken reports whether dest already belongs to another folder: one claimed
-// by a source, one holding indexed files, or one present on disk.
 func (n *folderNamer) taken(dest string) bool {
 	if n.owned[dest] || n.existing[dest] {
 		return true

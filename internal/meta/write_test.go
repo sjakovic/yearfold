@@ -3,6 +3,7 @@ package meta
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -14,9 +15,6 @@ import (
 
 var makerData = []byte("MAKERNOTE-PAYLOAD-0123456789")
 
-// cameraTIFF builds an EXIF block like a camera would write: a Make, an
-// Exif IFD with an exposure time and an old date, and a vendor tag whose
-// data lives outside the IFD.
 func cameraTIFF() []byte {
 	bo := binary.LittleEndian
 	const (
@@ -167,7 +165,7 @@ func TestWriteDateKeepsExistingTags(t *testing.T) {
 func TestWriteDateUnsupportedFormat(t *testing.T) {
 	t.Setenv("PATH", t.TempDir()) // make sure exiftool is not found
 	p := writeTemp(t, "a.heic", []byte("not really heic"))
-	if err := WriteDate(p, "heic", time.Now()); err != ErrCannotEmbed {
+	if err := WriteDate(p, "heic", time.Now()); !errors.Is(err, ErrCannotEmbed) {
 		t.Errorf("err = %v, want ErrCannotEmbed", err)
 	}
 	if data, _ := os.ReadFile(p); string(data) != "not really heic" {

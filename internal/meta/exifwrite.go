@@ -8,12 +8,6 @@ import (
 	"sort"
 )
 
-// This file sets the capture date inside an EXIF block without disturbing
-// anything else in it. Existing bytes are never moved: the date and a new
-// copy of the IFD that references it are appended to the end of the block
-// and the pointer to that IFD is updated. Every other tag, including maker
-// notes and tags this code knows nothing about, therefore stays valid.
-
 const (
 	tagExifIFD           = 0x8769
 	tagDateTimeOriginal  = 0x9003
@@ -23,19 +17,16 @@ const (
 	typeLong  = 4
 
 	ifdEntrySize = 12
-	// stampLen is "YYYY:MM:DD HH:MM:SS".
-	stampLen = 19
+	stampLen     = 19
 )
 
 var (
 	errBadEXIF  = errors.New("malformed EXIF data")
 	errEXIFFull = errors.New("no room left in the EXIF block")
 
-	// emptyTIFF is a little-endian EXIF block with an empty first IFD.
 	emptyTIFF = []byte{'I', 'I', 42, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 )
 
-// byteOrder can both decode and append integers in a TIFF's byte order.
 type byteOrder interface {
 	binary.ByteOrder
 	binary.AppendByteOrder
@@ -97,7 +88,6 @@ func newEntry(bo byteOrder, tag, typ uint16, count, value uint32) ifdEntry {
 	return e
 }
 
-// appendIFD writes an IFD at the end of tiff and returns its offset.
 func appendIFD(tiff []byte, bo byteOrder, entries []ifdEntry, next uint32) ([]byte, uint32) {
 	sort.SliceStable(entries, func(i, j int) bool {
 		return bo.Uint16(entries[i][:2]) < bo.Uint16(entries[j][:2])
@@ -118,8 +108,6 @@ func padEven(b []byte) []byte {
 	return b
 }
 
-// setTIFFDate returns a copy of an EXIF (TIFF) block whose DateTimeOriginal
-// and DateTimeDigitized are stamp, in the form "YYYY:MM:DD HH:MM:SS".
 func setTIFFDate(tiff []byte, stamp string) ([]byte, error) {
 	if len(stamp) != stampLen {
 		return nil, errors.New("invalid date stamp")
@@ -134,7 +122,6 @@ func setTIFFDate(tiff []byte, stamp string) ([]byte, error) {
 		return nil, err
 	}
 
-	// Carry over every tag of the existing Exif IFD except the dates.
 	var exifEntries []ifdEntry
 	pointer := -1
 	for i, e := range root.entries {
@@ -163,12 +150,10 @@ func setTIFFDate(tiff []byte, stamp string) ([]byte, error) {
 	out, exifOffset := appendIFD(out, bo, exifEntries, 0)
 
 	if pointer >= 0 {
-		// Repoint the existing ExifIFD entry in place.
 		pos := int(root.offset) + 2 + pointer*ifdEntrySize + 8
 		bo.PutUint32(out[pos:], exifOffset)
 		return out, nil
 	}
-	// The first IFD has no Exif IFD yet: append a copy that points to it.
 	entries := append(append([]ifdEntry(nil), root.entries...), newEntry(bo, tagExifIFD, typeLong, 1, exifOffset))
 	out, rootOffset := appendIFD(out, bo, entries, root.next)
 	bo.PutUint32(out[4:8], rootOffset)
@@ -181,19 +166,15 @@ const (
 	jpegMarkerSOS  = 0xDA
 	jpegMarkerAPP0 = 0xE0
 	jpegMarkerAPP1 = 0xE1
-	// A JPEG segment length is 16 bits and includes its own two bytes.
 	jpegMaxSegment = 0xFFFF
 )
 
 var exifHeader = []byte("Exif\x00\x00")
 
-// setJPEGDate returns the JPEG with the capture date set, adding an EXIF
-// segment when the file has none.
 func setJPEGDate(data []byte, stamp string) ([]byte, error) {
 	if len(data) < 4 || data[0] != 0xFF || data[1] != jpegMarkerSOI {
 		return nil, errors.New("not a JPEG file")
 	}
-	// A new EXIF segment goes after SOI and the JFIF header, if present.
 	insertAt := 2
 	for pos := 2; ; {
 		if pos+4 > len(data) || data[pos] != 0xFF {
@@ -250,8 +231,6 @@ func exifSegment(tiff []byte) ([]byte, error) {
 
 var pngSignature = []byte("\x89PNG\r\n\x1a\n")
 
-// setPNGDate returns the PNG with the capture date set in its eXIf chunk,
-// adding the chunk before the image data when the file has none.
 func setPNGDate(data []byte, stamp string) ([]byte, error) {
 	if !bytes.HasPrefix(data, pngSignature) {
 		return nil, errors.New("not a PNG file")
@@ -294,7 +273,6 @@ func pngChunk(kind string, payload []byte) []byte {
 	return binary.BigEndian.AppendUint32(chunk, crc32.ChecksumIEEE(body))
 }
 
-// splice returns data with data[from:to] replaced by insert.
 func splice(data []byte, from, to int, insert []byte) []byte {
 	out := make([]byte, 0, len(data)-(to-from)+len(insert))
 	out = append(out, data[:from]...)

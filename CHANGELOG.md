@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-10-05
+
+### Added
+
+- Release builds for macOS, Windows and Linux, produced by GitHub Actions
+  for every version tag and attached to the GitHub release.
+
+### Changed
+
+- Internal restructuring with no change in behaviour: all database access
+  lives in the `store` package, the API for the UI moved to `internal/app`,
+  and the frontend is split into `components`, `hooks` and `lib`.
+- Every backend package has its own tests; the frontend has unit tests.
+  The code is checked with golangci-lint and ESLint in CI.
+
 ## [0.5.0] - 2026-10-05
 
 ### Added

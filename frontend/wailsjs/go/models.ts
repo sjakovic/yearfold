@@ -1,72 +1,5 @@
-export namespace library {
+export namespace app {
 	
-	export class DateResult {
-	    written: number;
-	    indexed: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new DateResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.written = source["written"];
-	        this.indexed = source["indexed"];
-	    }
-	}
-	export class TakeoutResult {
-	    trashed: number;
-	    dates: number;
-	    skipped: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new TakeoutResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.trashed = source["trashed"];
-	        this.dates = source["dates"];
-	        this.skipped = source["skipped"];
-	    }
-	}
-	export class TakeoutSummary {
-	    sidecars: number;
-	    dates: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new TakeoutSummary(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.sidecars = source["sidecars"];
-	        this.dates = source["dates"];
-	    }
-	}
-
-}
-
-export namespace main {
-	
-	export class AppState {
-	    root: string;
-	    recent: string[];
-	    language: string;
-	    version: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new AppState(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.root = source["root"];
-	        this.recent = source["recent"];
-	        this.language = source["language"];
-	        this.version = source["version"];
-	    }
-	}
 	export class MovedPath {
 	    from: string;
 	    to: string;
@@ -235,6 +168,73 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class State {
+	    root: string;
+	    recent: string[];
+	    language: string;
+	    version: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new State(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.root = source["root"];
+	        this.recent = source["recent"];
+	        this.language = source["language"];
+	        this.version = source["version"];
+	    }
+	}
+
+}
+
+export namespace library {
+	
+	export class DateResult {
+	    written: number;
+	    indexed: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DateResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.written = source["written"];
+	        this.indexed = source["indexed"];
+	    }
+	}
+	export class TakeoutResult {
+	    trashed: number;
+	    dates: number;
+	    skipped: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TakeoutResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.trashed = source["trashed"];
+	        this.dates = source["dates"];
+	        this.skipped = source["skipped"];
+	    }
+	}
+	export class TakeoutSummary {
+	    sidecars: number;
+	    dates: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TakeoutSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sidecars = source["sidecars"];
+	        this.dates = source["dates"];
+	    }
 	}
 
 }

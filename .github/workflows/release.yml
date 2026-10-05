@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  WAILS_VERSION: v2.16.0
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release view "$GITHUB_REF_NAME" || gh release create "$GITHUB_REF_NAME" --generate-notes
+
+  build:
+    needs: create
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin/universal
+            artifact: Yearfold-macos.zip
+          - os: windows-latest
+            platform: windows/amd64
+            artifact: Yearfold-windows-amd64.exe
+          - os: ubuntu-22.04
+            platform: linux/amd64
+            artifact: Yearfold-linux-amd64.tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+      - run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+      - run: wails build -platform ${{ matrix.platform }}
+      - name: Package
+        shell: bash
+        run: |
+          cd build/bin
+          case "$RUNNER_OS" in
+            macOS)   ditto -c -k --keepParent Yearfold.app "${{ matrix.artifact }}" ;;
+            Windows) mv Yearfold.exe "${{ matrix.artifact }}" ;;
+            Linux)   tar -czf "${{ matrix.artifact }}" Yearfold ;;
+          esac
+      - name: Upload
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" "build/bin/${{ matrix.artifact }}" --clobber
