@@ -214,3 +214,63 @@ func TestRestoreWhenThePlaceIsTaken(t *testing.T) {
 		t.Error("restore overwrote the newcomer or lost the file")
 	}
 }
+
+func TestRenameDir(t *testing.T) {
+	f := setup(t, "2005/Trip/a.jpg", "2005/Trip/day 2/b.jpg", "2005/Tripod/c.jpg", "2005/Other/d.jpg")
+	a := f.id("2005/Trip/a.jpg")
+	// Files the index does not know about stay in the folder.
+	testutil.WriteFile(t, filepath.Join(f.root, "2005/Trip/.note"), "x")
+
+	got, err := f.ops.RenameDir("2005/Trip", " Rome ")
+	if err != nil || got != "2005/Rome" {
+		t.Fatalf("rename = %q, %v", got, err)
+	}
+	for _, p := range []string{"2005/Rome/a.jpg", "2005/Rome/day 2/b.jpg", "2005/Rome/.note", "2005/Tripod/c.jpg"} {
+		if !f.onDisk(p) {
+			t.Errorf("%s missing", p)
+		}
+	}
+	if f.onDisk("2005/Trip") {
+		t.Error("old folder still there")
+	}
+	if f.id("2005/Rome/a.jpg") != a || f.id("2005/Rome/day 2/b.jpg") == 0 {
+		t.Error("index not updated")
+	}
+	if f.id("2005/Tripod/c.jpg") == 0 {
+		t.Error("a folder that only shares the prefix was touched")
+	}
+
+	if n, err := f.ops.Undo(); err != nil || n != 2 {
+		t.Fatalf("undo = %d, %v", n, err)
+	}
+	if !f.onDisk("2005/Trip/a.jpg") || !f.onDisk("2005/Trip/day 2/b.jpg") {
+		t.Error("undo did not restore the old name")
+	}
+}
+
+func TestRenameDirRejectsBadNames(t *testing.T) {
+	f := setup(t, "2005/Trip/a.jpg", "2005/Other/b.jpg")
+	testutil.WriteFile(t, filepath.Join(f.root, "2005/OnDiskOnly/x"), "x")
+
+	bad := []struct{ dir, name string }{
+		{"2005/Trip", ""},
+		{"2005/Trip", "a/b"},
+		{"2005/Trip", ".."},
+		{"2005/Trip", "Other"},
+		{"2005/Trip", "OnDiskOnly"},
+		{"", "Photos"},
+		{"2005/Nope", "X"},
+		{"2005", ".yearfold"},
+	}
+	for _, tt := range bad {
+		if got, err := f.ops.RenameDir(tt.dir, tt.name); err == nil {
+			t.Errorf("RenameDir(%q, %q) = %q, want an error", tt.dir, tt.name, got)
+		}
+	}
+	if !f.onDisk("2005/Trip/a.jpg") || !f.onDisk("2005/Other/b.jpg") {
+		t.Error("a rejected rename changed the disk")
+	}
+	if got, err := f.ops.RenameDir("2005/Trip", "Trip"); err != nil || got != "2005/Trip" {
+		t.Errorf("same name = %q, %v", got, err)
+	}
+}

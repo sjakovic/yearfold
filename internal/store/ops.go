@@ -154,3 +154,74 @@ func (s *Store) MoveHistory() ([]PathPair, error) {
 	}
 	return out, rows.Err()
 }
+
+type MovedFile struct {
+	ID   int64
+	From string
+}
+
+func (s *Store) MovedMedia() ([]MovedFile, error) {
+	rows, err := s.db.Query(`SELECT o.file_id, o.from_path FROM ops o JOIN files f ON f.id = o.file_id
+		WHERE o.type = 'move' AND o.undone = 0 AND f.status = 'present' AND f.kind IN ('image', 'video')
+		ORDER BY o.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []MovedFile
+	for rows.Next() {
+		var m MovedFile
+		if err := rows.Scan(&m.ID, &m.From); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) RenameDir(batch int64, oldDir, newDir string) (int, error) {
+	n := 0
+	err := s.inTx(func(tx *sql.Tx) error {
+		rows, err := tx.Query(`SELECT id, rel_path FROM files
+			WHERE status = 'present' AND (dir = ? OR dir LIKE ? ESCAPE '\')`, oldDir, escapeLike(oldDir)+"/%")
+		if err != nil {
+			return err
+		}
+		type entry struct {
+			id  int64
+			rel string
+		}
+		var files []entry
+		for rows.Next() {
+			var e entry
+			if err := rows.Scan(&e.id, &e.rel); err != nil {
+				rows.Close()
+				return err
+			}
+			files = append(files, e)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		for _, f := range files {
+			to := newDir + f.rel[len(oldDir):]
+			if err := setPath(tx, f.id, to); err != nil {
+				return err
+			}
+			if err := journal(tx, batch, OpMove, f.id, f.rel, to); err != nil {
+				return err
+			}
+		}
+		n = len(files)
+		return nil
+	})
+	return n, err
+}
+
+func (s *Store) DirExists(dir string) (bool, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM files WHERE status = 'present' AND (dir = ? OR dir LIKE ? ESCAPE '\')`,
+		dir, escapeLike(dir)+"/%").Scan(&n)
+	return n > 0, err
+}

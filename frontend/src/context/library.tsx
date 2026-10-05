@@ -12,6 +12,7 @@ export type Dialog =
     | {type: 'album'}
     | {type: 'newAlbum'}
     | {type: 'renameAlbum'; id: number; name: string}
+    | {type: 'renameFolder'; dir: string}
     | {type: 'deleteAlbum'; id: number; name: string}
     | {type: 'deleteTag'; id: number; name: string}
     | {type: 'trash'; ids: number[]}

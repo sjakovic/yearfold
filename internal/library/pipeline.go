@@ -14,43 +14,6 @@ import (
 
 const metaBatchSize = 200
 
-func (l *Library) LinkSidecars() error {
-	jsons, err := l.St.UnlinkedJSON()
-	if err != nil {
-		return err
-	}
-	byDir := map[string][]store.NamedFile{}
-	for _, j := range jsons {
-		byDir[j.Dir] = append(byDir[j.Dir], j)
-	}
-
-	for dir, files := range byDir {
-		media, err := l.St.MediaIn(dir)
-		if err != nil {
-			return err
-		}
-		if len(media) == 0 {
-			continue
-		}
-		ids := make(map[string]int64, len(media))
-		names := make([]string, 0, len(media))
-		for _, m := range media {
-			ids[m.Name] = m.ID
-			names = append(names, m.Name)
-		}
-		var links []store.SidecarLink
-		for _, j := range files {
-			if name, ok := meta.MatchSidecar(j.Name, names); ok {
-				links = append(links, store.SidecarLink{SidecarID: j.ID, MediaID: ids[name]})
-			}
-		}
-		if err := l.St.LinkSidecars(links); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (l *Library) ExtractMeta(ctx context.Context, progress func(done, total int)) error {
 	files, err := l.St.PendingMeta()
 	if err != nil || len(files) == 0 {

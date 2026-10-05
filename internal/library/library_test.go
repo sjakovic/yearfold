@@ -328,6 +328,89 @@ func TestTakeoutDataSurvivesWithoutJSONForOtherFormats(t *testing.T) {
 	}
 }
 
+func openEmpty(t *testing.T) *Library {
+	t.Helper()
+	lib, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = lib.Close() })
+	return lib
+}
+
+func rescan(t *testing.T, lib *Library) {
+	t.Helper()
+	if _, err := lib.Scan(nil); err != nil {
+		t.Fatal(err)
+	}
+	process(t, lib)
+}
+
+const takeoutJSON = `{"title":"x","photoTakenTime":{"timestamp":"1560600000"}}`
+
+func TestSidecarInAnotherTakeoutPart(t *testing.T) {
+	lib := openEmpty(t)
+	testutil.WriteFile(t, filepath.Join(lib.Root, "Takeout-1/Google Photos/Trip/clip.mp4"), "video")
+	testutil.WriteFile(t, filepath.Join(lib.Root, "Takeout-2/Google Photos/Trip/clip.mp4.supplemental-metadata.json"), takeoutJSON)
+	// Same file name in a different album: must not be mixed up.
+	testutil.WriteFile(t, filepath.Join(lib.Root, "Takeout-1/Google Photos/Other/clip.mp4"), "another video")
+	// A JSON that is not a Takeout sidecar stays unlinked.
+	testutil.WriteFile(t, filepath.Join(lib.Root, "Takeout-1/Google Photos/Notes/a.jpg"), "x")
+	testutil.WriteFile(t, filepath.Join(lib.Root, "Takeout-2/Google Photos/Notes/a.jpg.json"), `{"settings":true}`)
+	rescan(t, lib)
+
+	clip := byPath(t, lib, "Takeout-1/Google Photos/Trip/clip.mp4")
+	if clip.TakenSrc != store.SrcTakeout || clip.TakenAt != 1560600000 {
+		t.Errorf("clip date = %d (%s), want the one from the other part", clip.TakenAt, clip.TakenSrc)
+	}
+	sidecar := byPath(t, lib, "Takeout-2/Google Photos/Trip/clip.mp4.supplemental-metadata.json")
+	if sidecar.SidecarOf != clip.ID {
+		t.Errorf("sidecar linked to %d, want %d", sidecar.SidecarOf, clip.ID)
+	}
+	if other := byPath(t, lib, "Takeout-1/Google Photos/Other/clip.mp4"); other.TakenSrc != store.SrcMtime {
+		t.Errorf("unrelated clip got a date (%s)", other.TakenSrc)
+	}
+	if notes := byPath(t, lib, "Takeout-2/Google Photos/Notes/a.jpg.json"); notes.SidecarOf != 0 {
+		t.Error("a non-Takeout JSON was linked")
+	}
+
+	// The sidecar follows the clip from wherever it is.
+	if n, err := lib.Ops.Move([]fileops.Target{{ID: clip.ID, DestDir: "2019/Trip"}}); err != nil || n != 2 {
+		t.Fatalf("move = %d, %v", n, err)
+	}
+	if !testutil.Exists(filepath.Join(lib.Root, "2019/Trip/clip.mp4.supplemental-metadata.json")) {
+		t.Error("sidecar from the other part did not travel with the clip")
+	}
+}
+
+func TestSidecarFoundForMediaMovedEarlier(t *testing.T) {
+	lib := openEmpty(t)
+	testutil.WriteFile(t, filepath.Join(lib.Root, "Takeout-1/Google Photos/Trip/clip.mp4"), "video")
+	rescan(t, lib)
+	clip := byPath(t, lib, "Takeout-1/Google Photos/Trip/clip.mp4")
+	if _, err := lib.Ops.Move([]fileops.Target{{ID: clip.ID, DestDir: "2020/Trip"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	testutil.WriteFile(t, filepath.Join(lib.Root, "Takeout-2/Google Photos/Trip/clip.mp4.supplemental-metadata.json"), takeoutJSON)
+	rescan(t, lib)
+
+	moved := byPath(t, lib, "2020/Trip/clip.mp4")
+	if moved.ID != clip.ID || moved.TakenSrc != store.SrcTakeout || moved.TakenAt != 1560600000 {
+		t.Fatalf("moved clip = %+v", moved)
+	}
+
+	// Organize brings the stray JSON to its clip and leaves the clip alone.
+	plan, err := organize.ByDate(lib.St, lib.Root, organize.LayoutFolder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Moves) != 1 || plan.Moves[0].To != "2020/Trip" ||
+		plan.Moves[0].From != "Takeout-2/Google Photos/Trip/clip.mp4.supplemental-metadata.json" {
+		t.Errorf("plan = %+v", plan.Moves)
+	}
+}
+
 func TestOpenAdoptsLibraryFromOldName(t *testing.T) {
 	lib := newLibrary(t)
 	img := byPath(t, lib, "Takeout/Photos from 2019/IMG_1.jpg")

@@ -303,3 +303,52 @@ func (o *Ops) undo(op store.Op) (bool, error) {
 	}
 	return false, nil
 }
+
+// RenameDir gives a folder a new name and returns its new path.
+func (o *Ops) RenameDir(dir, name string) (string, error) {
+	dir, err := CleanDir(dir)
+	if err != nil {
+		return "", err
+	}
+	name = strings.TrimSpace(name)
+	switch {
+	case dir == "":
+		return "", errors.New("the library folder itself cannot be renamed here")
+	case name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`):
+		return "", errors.New("a folder name cannot be empty or contain slashes")
+	}
+	newDir, err := CleanDir(path.Join(path.Dir(dir), name))
+	if err != nil {
+		return "", err
+	}
+	if newDir == dir {
+		return dir, nil
+	}
+
+	if _, err := os.Lstat(o.abs(dir)); err != nil {
+		return "", err
+	}
+	// On a case-insensitive disk "trip" and "Trip" are the same folder.
+	if !strings.EqualFold(newDir, dir) {
+		indexed, err := o.St.DirExists(newDir)
+		if err != nil {
+			return "", err
+		}
+		if _, err := os.Lstat(o.abs(newDir)); indexed || !errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("a folder named %q already exists", name)
+		}
+	}
+
+	batch, err := o.St.NextBatch()
+	if err != nil {
+		return "", err
+	}
+	if err := os.Rename(o.abs(dir), o.abs(newDir)); err != nil {
+		return "", err
+	}
+	if _, err := o.St.RenameDir(batch, dir, newDir); err != nil {
+		_ = os.Rename(o.abs(newDir), o.abs(dir))
+		return "", err
+	}
+	return newDir, nil
+}

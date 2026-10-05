@@ -56,6 +56,8 @@ export function RemoveTag(arg1:Array<number>,arg2:number):Promise<void>;
 
 export function RenameAlbum(arg1:number,arg2:string):Promise<void>;
 
+export function RenameFolder(arg1:string,arg2:string):Promise<string>;
+
 export function RestoreFiles(arg1:Array<number>):Promise<number>;
 
 export function Reveal(arg1:number):Promise<void>;

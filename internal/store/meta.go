@@ -180,3 +180,28 @@ func (s *Store) MarkRewritten(id, size, mtime int64) error {
 		WHERE id = ?`, size, mtime, id)
 	return err
 }
+
+type StraySidecar struct {
+	ID       int64
+	RelPath  string
+	MediaID  int64
+	MediaDir string
+}
+
+func (s *Store) StraySidecars() ([]StraySidecar, error) {
+	rows, err := s.db.Query(`SELECT s.id, s.rel_path, m.id, m.dir FROM files s JOIN files m ON m.id = s.sidecar_of
+		WHERE s.status = 'present' AND m.status = 'present' AND s.dir != m.dir ORDER BY s.rel_path`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []StraySidecar
+	for rows.Next() {
+		var sc StraySidecar
+		if err := rows.Scan(&sc.ID, &sc.RelPath, &sc.MediaID, &sc.MediaDir); err != nil {
+			return nil, err
+		}
+		out = append(out, sc)
+	}
+	return out, rows.Err()
+}

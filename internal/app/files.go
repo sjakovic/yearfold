@@ -20,6 +20,14 @@ func (a *App) MoveFiles(ids []int64, destDir string) (int, error) {
 	return lib.Ops.Move(targets)
 }
 
+func (a *App) RenameFolder(dir, name string) (string, error) {
+	lib, err := a.library()
+	if err != nil {
+		return "", err
+	}
+	return lib.Ops.RenameDir(dir, name)
+}
+
 func (a *App) TrashFiles(ids []int64) (int, error) {
 	lib, err := a.library()
 	if err != nil {

@@ -36,7 +36,7 @@ files. Your photos stay ordinary files in ordinary folders.
 - **Albums and tags that never move a file** - they live in the library index.
   A photo stays in its album when you move it to another folder.
 - **Real moves when you want them** - move photos to any folder inside the
-  library; sidecar files travel with them.
+  library, or rename a folder; sidecar files travel with them.
 - **Fix missing dates** - set a capture date on one photo or many. JPEG and
   PNG get it written into the file (EXIF) with every other tag left intact;
   other formats and videos keep it in the library.
@@ -93,8 +93,8 @@ Download the build for your system from the
 | Windows | `Yearfold-windows-amd64.exe` |
 | Linux | `Yearfold-linux-amd64.tar.gz` |
 
-The builds are not signed. On macOS, right-click the app and choose **Open**
-the first time; on Windows, choose **More info → Run anyway**. The Linux build
+The builds are not signed. On macOS, open the app once, then allow it under
+**System Settings → Privacy & Security → Open Anyway**; on Windows, choose **More info → Run anyway**. The Linux build
 needs GTK 3 and WebKitGTK 4.0. Day-to-day development and testing happen on
 macOS.
 

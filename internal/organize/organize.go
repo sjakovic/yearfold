@@ -74,7 +74,29 @@ func ByDate(st *store.Store, root string, layout Layout) (Plan, error) {
 			plan.Moves = append(plan.Moves, Move{ID: m.ID, From: m.RelPath, To: dest})
 		}
 	}
+	if err := addStraySidecars(st, &plan); err != nil {
+		return plan, err
+	}
 	return plan, nil
+}
+
+// addStraySidecars plans moving sidecars next to media that stays where it
+// is; sidecars of media that moves travel with it anyway.
+func addStraySidecars(st *store.Store, plan *Plan) error {
+	strays, err := st.StraySidecars()
+	if err != nil {
+		return err
+	}
+	moving := make(map[int64]bool, len(plan.Moves))
+	for _, m := range plan.Moves {
+		moving[m.ID] = true
+	}
+	for _, sc := range strays {
+		if !moving[sc.MediaID] {
+			plan.Moves = append(plan.Moves, Move{ID: sc.ID, From: sc.RelPath, To: sc.MediaDir})
+		}
+	}
+	return nil
 }
 
 func isYear(name string) bool {
@@ -127,6 +149,15 @@ func newFolderNamer(st *store.Store, root string) (*folderNamer, error) {
 		toDir, _, _ := store.SplitPath(h.To)
 		year, name, _ := strings.Cut(toDir, "/")
 		if isYear(year) && name != "" && !strings.Contains(name, "/") {
+			// A renamed destination keeps receiving what was headed for it.
+			if n.owned[fromDir] {
+				for src, dest := range n.assigned {
+					if dest == fromDir {
+						n.assigned[src] = toDir
+					}
+				}
+				delete(n.owned, fromDir)
+			}
 			n.assigned[source{dir: fromDir, year: year}] = toDir
 			n.owned[toDir] = true
 		}

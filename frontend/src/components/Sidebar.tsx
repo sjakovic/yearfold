@@ -31,6 +31,14 @@ export default function Sidebar() {
                         {n.children.length ? (open.has(n.path) ? '▾' : '▸') : ''}
                     </span>
                     <span className="label">{n.path === '' ? rootName : n.name}</span>
+                    {n.path !== '' && (
+                        <span className="row-actions">
+                            <button className="link" title={t('folderRename')} onClick={e => {
+                                e.stopPropagation()
+                                openDialog({type: 'renameFolder', dir: n.path})
+                            }}>✎</button>
+                        </span>
+                    )}
                     <span className="count">{n.count}</span>
                 </div>
                 {open.has(n.path) && n.children.map(c => renderNode(c, depth + 1))}

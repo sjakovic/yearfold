@@ -1,6 +1,7 @@
 import {useLibrary} from '../../context/library'
 import {api} from '../../lib/api'
 import {useT} from '../../lib/i18n'
+import {baseName} from '../../lib/views'
 import {AlbumDialog} from './AlbumDialog'
 import {ChangesDialog} from './ChangesDialog'
 import {ConfirmDialog} from './ConfirmDialog'
@@ -63,6 +64,22 @@ export default function ActionDialogs() {
                 <PromptDialog title={t('albumRename')} confirmLabel={t('save')} initial={dialog.name} onClose={close}
                               onSubmit={name => run(api.RenameAlbum(dialog.id, name), {keepSelection: true})}/>
             )
+        case 'renameFolder': {
+            const {dir} = dialog
+            const showRenamed = (renamed: string) => {
+                if (view.type === 'dir' && (view.dir === dir || view.dir.startsWith(`${dir}/`))) {
+                    lib.showView({type: 'dir', dir: renamed + view.dir.slice(dir.length)})
+                }
+                return renamed
+            }
+            return (
+                <PromptDialog title={t('folderRename')} confirmLabel={t('save')} initial={baseName(dir)}
+                              label={t('folderRenameLabel', {name: baseName(dir)})} onClose={close}
+                              onSubmit={name => run(api.RenameFolder(dir, name).then(showRenamed), {
+                                  message: renamed => t('folderRenamed', {name: baseName(renamed)}),
+                              })}/>
+            )
+        }
         case 'deleteAlbum':
             return (
                 <ConfirmDialog title={t('albumDelete')} danger confirmLabel={t('albumDelete')} onClose={close}

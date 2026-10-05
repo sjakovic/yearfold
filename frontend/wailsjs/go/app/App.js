@@ -106,6 +106,10 @@ export function RenameAlbum(arg1, arg2) {
   return window['go']['app']['App']['RenameAlbum'](arg1, arg2);
 }
 
+export function RenameFolder(arg1, arg2) {
+  return window['go']['app']['App']['RenameFolder'](arg1, arg2);
+}
+
 export function RestoreFiles(arg1) {
   return window['go']['app']['App']['RestoreFiles'](arg1);
 }

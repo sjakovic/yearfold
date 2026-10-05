@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-10-05
+
+### Added
+
+- Rename a folder from the folder tree. The folder is renamed on disk with
+  everything in it, tags and albums are kept, and the rename can be undone.
+
+### Fixed
+
+- Google JSON files are now paired with their photo or video when Google put
+  the two into different parts of a split export (`Takeout-1`, `Takeout-2`,
+  ...), also for media that was already moved into year folders. Videos that
+  had no date because of this get one.
+- "Organize by year" moves a JSON file next to its photo when the photo is
+  already in place.
+
 ## [0.6.0] - 2026-10-05
 
 ### Added

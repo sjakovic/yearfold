@@ -182,6 +182,47 @@ func TestFolderLayoutAvoidsFoldersOnDisk(t *testing.T) {
 	expect(t, got, map[string]string{"in/Trip/a.jpg": "2019/Trip 2"})
 }
 
+func TestStraySidecarsJoinTheirMedia(t *testing.T) {
+	l := setup(t)
+	staying := l.add("2019/Trip/a.jpg", day(2019, time.June))
+	moving := l.add("in/Trip/b.jpg", day(2019, time.June))
+	sidecarA := l.add("Takeout-2/Trip/a.jpg.json", time.Time{})
+	sidecarB := l.add("Takeout-2/Trip/b.jpg.json", time.Time{})
+	err := l.st.LinkSidecars([]store.SidecarLink{
+		{SidecarID: sidecarA, MediaID: staying},
+		{SidecarID: sidecarB, MediaID: moving},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// b.jpg moves and takes its sidecar along, so only a's sidecar is listed.
+	got, _ := l.plan(LayoutFolder)
+	expect(t, got, map[string]string{
+		"in/Trip/b.jpg":             "2019/Trip 2",
+		"Takeout-2/Trip/a.jpg.json": "2019/Trip",
+	})
+}
+
+func TestFolderLayoutFollowsRenamedFolders(t *testing.T) {
+	l := setup(t)
+	first := l.add("Bogdan/Party/p1.jpg", day(2019, time.June))
+	late := l.add("Bogdan/Party/late.jpg", time.Time{})
+	l.apply(LayoutFolder)
+
+	// The user renames 2019/Party to 2019/Birthday.
+	batch, _ := l.st.NextBatch()
+	if err := l.st.RecordMove(batch, first, "2019/Party/p1.jpg", "2019/Birthday/p1.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.st.SaveMeta([]store.MetaUpdate{{ID: late, TakenAt: day(2019, time.July).Unix(), TakenSrc: store.SrcExif}}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, _ := l.plan(LayoutFolder)
+	expect(t, got, map[string]string{"Bogdan/Party/late.jpg": "2019/Birthday"})
+}
+
 func mkdir(root, rel string) error {
 	return os.MkdirAll(filepath.Join(root, filepath.FromSlash(rel)), 0o755)
 }
